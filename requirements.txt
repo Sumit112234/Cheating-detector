@@ -1,0 +1,8 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+opencv-python>=4.9
+mediapipe>=0.10
+numpy>=1.26
+ultralytics>=8.1
+python-dotenv>=1.0
+pydantic>=2.6
