@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mystic Tarot: Gesture Interface</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Quicksand:wght@300;500&display=swap" rel="stylesheet">
+
+    <!-- Styles -->
+    <style>
+        :root {
+            --color-gold: #FFD700;
+            --color-purple: #9B59B6;
+            --color-deep: #0a0510;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--color-deep);
+            font-family: 'Quicksand', sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* UI Overlay Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to 3D if needed */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            text-shadow: 0 0 10px var(--color-purple);
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            margin: 0;
+            font-size: 2.5rem;
+            letter-spacing: 4px;
+            background: linear-gradient(to right, #fff, var(--color-gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            margin-top: 5px;
+            font-size: 1rem;
+            color: #aaa;
+            letter-spacing: 1px;
+        }
+
+        /* Instruction/Gesture Feedback */
+        #gesture-feedback {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        
+        .gesture-icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 15px var(--color-gold));
+        }
+
+        .instruction-text {
+            font-family: 'Cinzel', serif;
+            font-size: 1.5rem;
+            color: var(--color-gold);
+            background: rgba(0,0,0,0.7);
+            padding: 10px 20px;
+            border: 1px solid var(--color-purple);
+            border-radius: 4px;
+        }
+
+        /* Card Interpretation Overlay */
+        #reading-display {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 600px;
+            background: rgba(10, 5, 16, 0.85);
+            border: 1px solid var(--color-gold);
+            padding: 30px;
+            text-align: center;
+            border-radius: 2px;
+            box-shadow: 0 0 30px rgba(155, 89, 182, 0.3);
+            opacity: 0;
+            transition: opacity 1s, transform 1s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: none;
+            backdrop-filter: blur(5px);
+        }
+
+        #reading-display.active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #card-name {
+            font-family: 'Cinzel', serif;
+            font-size: 2rem;
+            color: var(--color-gold);
+            margin-bottom: 10px;
+        }
+
+        #card-meaning {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #e0e0e0;
+        }
+
+        /* Loading / Camera Feed Wrapper */
+        #camera-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #444;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #ff4444;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #ff4444;
+        }
+        .status-dot.active {
+            background-color: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+        }
+
+        /* Hidden video element for MediaPipe */
+        #input-video {
+            display: none;
+        }
+
+        /* Start Overlay */
+        #start-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 1s;
+        }
+        
+        #start-btn {
+            background: transparent;
+            color: var(--color-gold);
+            border: 2px solid var(--color-gold);
+            padding: 15px 40px;
+            font-family: 'Cinzel', serif;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #start-btn:hover {
+            background: var(--color-gold);
+            color: #000;
+            box-shadow: 0 0 20px var(--color-gold);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Start Screen -->
+    <div id="start-overlay">
+        <h1 style="margin-bottom: 20px;">Arcana Vision</h1>
+        <p style="margin-bottom: 40px; color: #888;">Allow camera access for gesture control</p>
+        <button id="start-btn">Begin Reading</button>
+    </div>
+
+    <!-- UI Layer -->
+    <div id="ui-layer">
+        <header>
+            <h1>THE MAJOR ARCANA</h1>
+            <p class="subtitle">Swipe to Unfold &bull; Fist to Select</p>
+        </header>
+        
+        <div id="camera-status" title="Camera Status">
+            <div class="status-dot" id="status-dot"></div>
+        </div>
+
+        <div id="gesture-feedback">
+            <div class="gesture-icon">✋</div>
+            <div class="instruction-text" id="instruction-label">Show Hand</div>
+        </div>
+
+        <div id="reading-display">
+            <h2 id="card-name">The Fool</h2>
+            <p id="card-meaning">New beginnings, innocence, spontaneity, a free spirit.</p>
+        </div>
+    </div>
+
+    <!-- 3D Scene Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Video Source for Vision -->
+    <video id="input-video"></video>
+
+    <!-- Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    
+    <!-- MediaPipe Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <script>
+        // --- 1. Data: The Major Arcana ---
+        const majorArcana = [
+            { id: 0, name: "The Fool", meaning: "New beginnings, innocence, spontaneity, a free spirit." },
+            { id: 1, name: "The Magician", meaning: "Willpower, creation, manifestation, resourcefulness." },
+            { id: 2, name: "The High Priestess", meaning: "Intuition, mystery, spirituality, higher power." },
+            { id: 3, name: "The Empress", meaning: "Femininity, beauty, nature, abundance." },
+            { id: 4, name: "The Emperor", meaning: "Authority, structure, control, fatherhood." },
+            { id: 5, name: "The Hierophant", meaning: "Tradition, conformity, morality, ethics." },
+            { id: 6, name: "The Lovers", meaning: "Love, harmony, relationships, choices." },
+            { id: 7, name: "The Chariot", meaning: "Control, willpower, success, action." },
+            { id: 8, name: "Strength", meaning: "Strength, courage, persuasion, influence." },
+            { id: 9, name: "The Hermit", meaning: "Soul-searching, introspection, inner guidance." },
+            { id: 10, name: "Wheel of Fortune", meaning: "Cycles, destiny, turning point, luck." },
+            { id: 11, name: "Justice", meaning: "Fairness, truth, law, cause and effect." },
+            { id: 12, name: "The Hanged Man", meaning: "Pausing, surrender, letting go, new perspective." },
+            { id: 13, name: "Death", meaning: "Endings, change, transformation, transition." },
+            { id: 14, name: "Temperance", meaning: "Balance, moderation, patience, purpose." },
+            { id: 15, name: "The Devil", meaning: "Shadow self, attachment, addiction, restriction." },
+            { id: 16, name: "The Tower", meaning: "Sudden change, upheaval, chaos, revelation." },
+            { id: 17, name: "The Star", meaning: "Hope, faith, purpose, renewal, spirituality." },
+            { id: 18, name: "The Moon", meaning: "Illusion, fear, anxiety, subconscious, intuition." },
+            { id: 19, name: "The Sun", meaning: "Positivity, fun, warmth, success, vitality." },
+            { id: 20, name: "Judgement", meaning: "Rebirth, inner calling, absolution." },
+            { id: 21, name: "The World", meaning: "Completion, integration, accomplishment, travel." }
+        ];
+
+        // Shuffle function for authenticity
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+        const deckData = shuffle([...majorArcana]);
+
+        // --- 2. Three.js Scene Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x0a0510, 0.02); // Deep purple fog
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 0, 15);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        container.appendChild(renderer.domElement);
+
+        // Post-Processing (Bloom)
+        const renderScene = new THREE.RenderPass(scene, camera);
+        const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.2;
+        bloomPass.strength = 1.2; // Ethereal glow strength
+        bloomPass.radius = 0.5;
+        
+        const composer = new THREE.EffectComposer(renderer);
+        composer.addPass(renderScene);
+        composer.addPass(bloomPass);
+
+        // Lights
+        const ambientLight = new THREE.AmbientLight(0x404040, 2); 
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0x9B59B6, 2, 50);
+        pointLight.position.set(0, 5, 5);
+        scene.add(pointLight);
+
+        const goldLight = new THREE.PointLight(0xFFD700, 1, 20);
+        goldLight.position.set(5, -5, 5);
+        scene.add(goldLight);
+
+        // --- 3. Procedural Textures (No External Assets) ---
+        function createCardTexture(index, name) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 800;
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            const grd = ctx.createLinearGradient(0, 0, 0, 800);
+            grd.addColorStop(0, "#1a0b2e");
+            grd.addColorStop(1, "#000000");
+            ctx.fillStyle = grd;
+            ctx.fillRect(0, 0, 512, 800);
+
+            // Border
+            ctx.strokeStyle = "#d4af37";
+            ctx.lineWidth = 15;
+            ctx.strokeRect(20, 20, 472, 760);
+
+            // Inner Art Placeholder (Abstract)
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(40, 40, 432, 600);
+            ctx.clip();
+            ctx.fillStyle = "#0d0418";
+            ctx.fillRect(40, 40, 432, 600);
+            
+            // Draw abstract sigil
+            ctx.strokeStyle = "rgba(155, 89, 182, 0.5)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<20; i++) {
+                ctx.moveTo(256, 300);
+                ctx.arc(256, 340, 50 + i*10, 0, Math.PI * 2);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Text
+            ctx.font = "bold 40px Cinzel";
+            ctx.fillStyle = "#d4af37";
+            ctx.textAlign = "center";
+            ctx.fillText(`${index}. ${name.toUpperCase()}`, 256, 700);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            return texture;
+        }
+
+        function createBackTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 800;
+            const ctx = canvas.getContext('2d');
+
+            // Background
+            ctx.fillStyle = "#05010a";
+            ctx.fillRect(0, 0, 512, 800);
+
+            // Pattern
+            ctx.strokeStyle = "#4a3b69";
+            ctx.lineWidth = 2;
+            const cx = 256, cy = 400;
+            for(let r=20; r<300; r+=20) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            
+            // Star
+            ctx.fillStyle = "#1a0b2e";
+            ctx.beginPath();
+            ctx.arc(cx, cy, 50, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = "#d4af37";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy-30); ctx.lineTo(cx+20, cy+20);
+            ctx.moveTo(cx+20, cy+20); ctx.lineTo(cx-20, cy+20);
+            ctx.moveTo(cx-20, cy+20); ctx.lineTo(cx, cy-30);
+            ctx.stroke();
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const cardGeo = new THREE.BoxGeometry(1.5, 2.4, 0.05);
+        const cardBackMat = new THREE.MeshStandardMaterial({ 
+            map: createBackTexture(),
+            roughness: 0.3,
+            metalness: 0.6
+        });
+
+        const cards = [];
+
+        deckData.forEach((data, i) => {
+            const frontMat = new THREE.MeshStandardMaterial({
+                map: createCardTexture(data.id, data.name),
+                roughness: 0.2,
+                metalness: 0.1,
+                emissive: 0x220033,
+                emissiveIntensity: 0.2
+            });
+            const edgeMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, roughness: 0.2, metalness: 0.8 });
+            
+            // Materials array: right, left, top, bottom, front, back
+            const materials = [edgeMat, edgeMat, edgeMat, edgeMat, frontMat, cardBackMat];
+            
+            const mesh = new THREE.Mesh(cardGeo, materials);
+            mesh.userData = { ...data, originalIndex: i };
+            
+            // Initial position: Stacked
+            mesh.position.set(0, i * 0.05 - (deckData.length * 0.025), 0);
+            mesh.rotation.x = -0.2; // Slight tilt back
+            
+            scene.add(mesh);
+            cards.push(mesh);
+        });
+
+        // --- 4. Environment Effects ---
+        // Particles
+        const particlesGeo = new THREE.BufferGeometry();
+        const particlesCount = 1000;
+        const posArray = new Float32Array(particlesCount * 3);
+        
+        for(let i=0; i < particlesCount * 3; i++) {
+            posArray[i] = (Math.random() - 0.5) * 30; // Spread
+        }
+        
+        particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const particlesMat = new THREE.PointsMaterial({
+            size: 0.05,
+            color: 0x9B59B6,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+        const particlesMesh = new THREE.Points(particlesGeo, particlesMat);
+        scene.add(particlesMesh);
+
+        // Cursor (Hand Sigil)
+        const cursorGeo = new THREE.RingGeometry(0.3, 0.35, 32);
+        const cursorMat = new THREE.MeshBasicMaterial({ 
+            color: 0xFFD700, 
+            side: THREE.DoubleSide, 
+            transparent: true, 
+            opacity: 0.8 
+        });
+        const cursor = new THREE.Mesh(cursorGeo, cursorMat);
+        cursor.position.z = 5; // Start closer
+        scene.add(cursor);
+
+        // --- 5. Logic & State ---
+        const STATE = {
+            IDLE: 'idle',
+            WHEEL: 'wheel',
+            SELECTED: 'selected'
+        };
+        let currentState = STATE.IDLE;
+        let handX = 0;
+        let handY = 0;
+        let handZ = 0; // Approximated depth
+        let isFist = false;
+        let isHandPresent = false;
+        let time = 0;
+
+        // Selection Logic
+        let selectedCardIndex = -1;
+
+        // UI Elements
+        const feedbackEl = document.getElementById('gesture-feedback');
+        const iconEl = feedbackEl.querySelector('.gesture-icon');
+        const textEl = document.getElementById('instruction-label');
+        const readingDisplay = document.getElementById('reading-display');
+        const cardNameEl = document.getElementById('card-name');
+        const cardMeaningEl = document.getElementById('card-meaning');
+        const statusDot = document.getElementById('status-dot');
+
+        function updateUI() {
+            feedbackEl.style.opacity = isHandPresent ? 1 : 0;
+            
+            if (currentState === STATE.IDLE) {
+                textEl.innerText = "Swipe Left to Spread";
+                iconEl.innerText = "👋";
+            } else if (currentState === STATE.WHEEL) {
+                textEl.innerText = "Make a Fist to Select";
+                iconEl.innerText = "✊";
+            } else if (currentState === STATE.SELECTED) {
+                textEl.innerText = "Open Hand to Reset";
+                iconEl.innerText = "✋";
+            }
+        }
+
+        // --- 6. Interaction & Animation Loop ---
+        
+        function updateCardPositions() {
+            const wheelRadius = 5;
+            const totalWidth = 20;
+            
+            cards.forEach((card, i) => {
+                if (currentState === STATE.SELECTED) {
+                    // Logic handled in selectCard() to snap
+                } else if (currentState === STATE.WHEEL) {
+                    // Calculate angle based on hand position + index offset
+                    // Hand X controls the "center" of the wheel
+                    const baseAngle = (handX / window.innerWidth) * Math.PI; // Map hand to rotation
+                    const offset = (i - cards.length / 2) * 0.25; // Spacing
+                    
+                    const angle = baseAngle + offset;
+                    
+                    // Target position
+                    const tx = Math.sin(angle) * wheelRadius;
+                    const ty = Math.cos(angle) * (wheelRadius * 0.4); // Elliptical orbit
+                    const tz = Math.cos(angle) * 2;
+
+                    // Interpolate (Simple lerp for smoothness)
+                    card.position.x += (tx - card.position.x) * 0.1;
+                    card.position.y += (ty - card.position.y) * 0.1;
+                    card.position.z += (tz - card.position.z) * 0.1;
+
+                    // Rotation: Face outward-ish
+                    const targetRotX = -Math.sin(angle) * 0.5;
+                    const targetRotY = -angle;
+                    const targetRotZ = -Math.cos(angle) * 0.2;
+
+                    card.rotation.x += (targetRotX - card.rotation.x) * 0.1;
+                    card.rotation.y += (targetRotY - card.rotation.y) * 0.1;
+                    card.rotation.z += (targetRotZ - card.rotation.z) * 0.1;
+                    
+                    // Reset scale
+                    card.scale.setScalar(1);
+
+                } else {
+                    // IDLE: Stack back
+                    const tx = 0;
+                    const ty = i * 0.05 - (deckData.length * 0.025);
+                    const tz = 0;
+                    
+                    card.position.x += (tx - card.position.x) * 0.05;
+                    card.position.y += (ty - card.position.y) * 0.05;
+                    card.position.z += (tz - card.position.z) * 0.05;
+
+                    card.rotation.x += (-0.2 - card.rotation.x) * 0.05;
+                    card.rotation.y += (-time * 0.2 - card.rotation.y) * 0.05; // Gentle rotate
+                    card.rotation.z += (0 - card.rotation.z) * 0.05;
+                    card.scale.setScalar(1);
+                }
+            });
+        }
+
+        function selectCard() {
+            // Find card closest to center of screen (or closest to hand X)
+            // Simplified: Find card with smallest absolute X (since they are in a line/ring)
+            // Better: Project 3D pos to 2D screen and check distance to HandX, HandY.
+            
+            let closestDist = Infinity;
+            let closestIndex = -1;
+
+            cards.forEach((card, i) => {
+                // Simple heuristic: X closest to 0 (center of ring) 
+                // Ideally we project card center to screen space
+                const dist = Math.abs(card.position.x);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closestIndex = i;
+                }
+            });
+
+            if (closestIndex !== -1) {
+                selectedCardIndex = closestIndex;
+                const card = cards[closestIndex];
+                
+                // Move to center front
+                card.position.set(0, 0, 2);
+                card.rotation.set(0, 0, 0);
+                card.scale.setScalar(1.5);
+
+                // Dim others
+                cards.forEach((c, i) => {
+                    if (i !== closestIndex) {
+                        c.position.z = -10; // Push back
+                        c.material.forEach(m => m.opacity = 0.3); // Fade
+                    }
+                });
+
+                // UI Update
+                cardNameEl.innerText = card.userData.name;
+                cardMeaningEl.innerText = card.userData.meaning;
+                readingDisplay.classList.add('active');
+            }
+        }
+
+        function resetSelection() {
+            selectedCardIndex = -1;
+            readingDisplay.classList.remove('active');
+            
+            // Restore opacity
+            cards.forEach(c => {
+                c.material.forEach(m => m.opacity = 1);
+            });
+            currentState = STATE.WHEEL; // Go back to wheel
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.01;
+
+            // Particles Animation
+            particlesMesh.rotation.y = time * 0.05;
+            particlesMesh.rotation.x = time * 0.02;
+
+            // Hand/Cursor Update
+            if (isHandPresent) {
+                // Map normalized coordinates (-1 to 1) to 3D world
+                const targetX = (handX / window.innerWidth) * 2 - 1; // -1 to 1
+                const targetY = -(handY / window.innerHeight) * 2 + 1;
+                
+                // Move Cursor
+                cursor.position.x += (targetX * 10 - cursor.position.x) * 0.2;
+                cursor.position.y += (targetY * 5 - cursor.position.y) * 0.2;
+                cursor.position.z = handZ; // Move in/out based on "depth"
+                
+                // Parallax Camera
+                camera.position.x += (targetX * 2 - camera.position.x) * 0.05;
+                camera.position.y += (targetY * 1 - camera.position.y) * 0.05;
+                camera.lookAt(0,0,0);
+
+                // Gesture Logic: Swipe Left -> Wheel
+                if (currentState === STATE.IDLE && handX < window.innerWidth * 0.2 && handX > 0) {
+                   // Transition if hand is on the left side (or right side? Prompt says "Swipe Left: Triggers Card Wheel")
+                   // Let's say if hand moves rapidly to the left side.
+                }
+            }
+
+            // Logic State Machine
+            if (isFist) {
+                if (currentState === STATE.WHEEL) {
+                    currentState = STATE.SELECTED;
+                    selectCard();
+                    updateUI();
+                }
+            } else {
+                if (currentState === STATE.SELECTED) {
+                    resetSelection();
+                    updateUI();
+                }
+            }
+
+            updateCardPositions();
+            composer.render();
+        }
+
+        animate();
+
+        // Window Resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- 7. MediaPipe Integration ---
+        const videoElement = document.getElementById('input-video');
+        
+        function onResults(results) {
+            statusDot.classList.add('active');
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                isHandPresent = true;
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // 1. Hand Position (Wrist: 0)
+                handX = landmarks[0].x * window.innerWidth;
+                handY = landmarks[0].y * window.innerHeight;
+                
+                // Simple depth heuristic: distance between wrist and middle finger base
+                // Or just keep it on a plane for simplicity, use Z to push cursor back slightly
+                handZ = 5 - (landmarks[0].z * 10); // Approximate 3D mapping
+
+                // 2. Fist Detection (Tips folded in)
+                // Check if finger tips are below finger pip joints (in screen space, considering hand orientation)
+                // Simplified: Check distance of Tips (8, 12, 16, 20) to Wrist (0). If close, it's a fist.
+                const wrist = landmarks[0];
+                const tips = [8, 12, 16, 20];
+                let foldedCount = 0;
+
+                tips.forEach(idx => {
+                    const tip = landmarks[idx];
+                    const dist = Math.sqrt(Math.pow(tip.x - wrist.x, 2) + Math.pow(tip.y - wrist.y, 2));
+                    if (dist < 0.15) foldedCount++; // Threshold for "folded"
+                });
+
+                // Also check Thumb (4)
+                const thumbTip = landmarks[4];
+                const thumbDist = Math.sqrt(Math.pow(thumbTip.x - wrist.x, 2) + Math.pow(thumbTip.y - wrist.y, 2));
+                if (thumbDist < 0.15) foldedCount++;
+
+                // Logic: If fingers are close to wrist, it's a fist.
+                isFist = foldedCount >= 3; // Relaxed threshold
+
+                // Manual Swipe Trigger (Since gesture recognizers can be flaky)
+                // If in IDLE, and hand moves significantly left...
+                // (Omitted for gesture simplicity, relying on user "holding" left side)
+                if (currentState === STATE.IDLE && handX < window.innerWidth * 0.3) {
+                    currentState = STATE.WHEEL;
+                    updateUI();
+                } else if (currentState === STATE.WHEEL && handX > window.innerWidth * 0.8) {
+                    // Reset to deck if hand moves far right (optional reset)
+                    // currentState = STATE.IDLE;
+                }
+
+            } else {
+                isHandPresent = false;
+                // If hand leaves during selection, maybe stay selected? or reset?
+                // Keeping state for now to allow reading without holding hand up.
+            }
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        // Camera Start
+        const startBtn = document.getElementById('start-btn');
+        const overlay = document.getElementById('start-overlay');
+
+        startBtn.addEventListener('click', () => {
+            const cameraUtils = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 640,
+                height: 480
+            });
+            cameraUtils.start()
+                .then(() => {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.remove(), 1000);
+                })
+                .catch(err => {
+                    console.error(err);
+                    alert("Camera access denied. Please allow camera to use gesture controls.");
+                });
+        });
+
+    </script>
+</body>
+</html>
