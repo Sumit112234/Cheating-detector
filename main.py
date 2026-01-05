@@ -191,7 +191,7 @@ class CheatingDetector:
         
         # Track eye state
         is_eyes_closed = avg_ear < self.EYE_CLOSED_THRESHOLD
-        self.eye_state_buffer.append(is_eyes_closed)
+        self.state["eye_state_buffer"].append(is_eyes_closed)
         
         # Check for sustained eye closure
         if is_eyes_closed:
