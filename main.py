@@ -217,7 +217,8 @@ class CheatingDetector:
         response["gaze_direction"] = gaze_dir
         
         # Track gaze history
-        self.gaze_history.append(gaze_dir)
+        self.state["gaze_history"].append(gaze_dir)
+
         
         # Check for looking away
         if gaze_dir != "center":
